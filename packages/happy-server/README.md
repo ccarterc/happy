@@ -62,6 +62,56 @@ Data persists in the `happy-data` Docker volume across container restarts.
 | `DATA_DIR` | No | `/data` | Base data directory |
 | `PGLITE_DIR` | No | `/data/pglite` | PGlite database directory |
 
+### HTTPS for Mobile Apps (Android / iOS)
+
+Android blocks cleartext HTTP by default, so the Play Store / App Store builds of the Happy mobile app **cannot connect to a plain HTTP server**. You need an HTTPS reverse proxy in front of your Happy Server.
+
+A setup script is included that generates a self-signed certificate and runs [Caddy](https://caddyserver.com/) as a reverse proxy in Docker:
+
+```bash
+# From the monorepo root:
+cd packages/happy-server
+./scripts/setup-https-proxy.sh
+```
+
+The script auto-detects your LAN IP and:
+1. Generates a self-signed certificate valid for 10 years
+2. Writes a Caddyfile for the reverse proxy
+3. Creates a Docker network connecting Caddy to the Happy Server container
+4. Starts the Caddy container on port 443
+
+See `./scripts/setup-https-proxy.sh --help` for all options (custom IP, port, cert directory, etc.).
+
+#### Install the CA certificate on your phone
+
+The self-signed certificate must be trusted by your phone. The script outputs a `happy-server-ca.crt` file — transfer it to your phone and install it:
+
+**Android:** Settings > Security > Encryption & credentials > Install a certificate > CA certificate
+
+**iOS:** Open the `.crt` file > Install Profile, then Settings > General > About > Certificate Trust Settings > enable the certificate
+
+A quick way to transfer the cert is to serve it temporarily:
+
+```bash
+python3 -m http.server 8080 -d ./certs
+# Open http://<your-ip>:8080/happy-server-ca.crt on your phone
+```
+
+#### Configure the CLI for HTTPS
+
+Add to your shell profile (`~/.bashrc` or `~/.zshrc`):
+
+```bash
+export HAPPY_SERVER_URL=https://<your-ip>
+export NODE_EXTRA_CA_CERTS=/path/to/certs/server.crt
+```
+
+#### Configure the mobile app
+
+On the Happy app's server configuration screen, enter `https://<your-ip>` and save. The app validates the connection before applying.
+
+> **Note:** On Android, the server configuration screen is accessible from the welcome screen (before login) via the server icon in the top-right header. If you're already logged in, you must log out first to access it.
+
 ### Optional: External Services
 
 To use external Postgres or Redis instead of the embedded defaults, set:
